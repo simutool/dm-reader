@@ -6,7 +6,13 @@ import datetime
 import getopt
 import sys
 
-file = "sample-kb-domainmodel.xlsx"
+
+base_uri = "http://example.org/tbox/"
+
+def construct_uri(tail_string):
+    return base_uri + tail_string.lower()
+
+file = "v3.2/kb-domainmodel-v3.2-workInProgress.xlsx"
 try:
      file = getopt.getopt(sys.argv[1:], "hv")[1][0]
 except Exception as e:
@@ -18,18 +24,35 @@ ws_classes = workbook.sheet_by_index(0)
 ws_properties = workbook.sheet_by_index(1)
 ws_relations = workbook.sheet_by_index(2)
 ws_namespaces = workbook.sheet_by_index(3)
+ws_meta = workbook.sheet_by_index(4)
 
-version = "3.2"  # needs to be updated
+
+meta_rows = ws_meta.get_rows()
+meta_rows.next()  # omit header row
+
+version = '0.0'
+for row in meta_rows:
+    version = row[0].value # read version number from domain model
 
 # Dict storing all items of upper-level part of Domain Model as single dictionaries
 class_dict_upper = {}
 # Dict storing all items of lower-level part of Domain Model as single dictionaries
 class_dict_simutool = {}
-property_dict = {}  # Dict storing all property information
+
+property_dict_upper = {}  # Dict storing all property information
+property_dict_simutool = {}  # Dict storing all property information
+
 relations_dict_upper = {}  # Dict storing relationsships of upper_level
 relations_dict_simutool = {}  # Dict storing relationsships of simutool_level
 namespace_dict = {}  # Dict storing namespaces
 
+
+def eval_binary(field):
+    field = field.lower()
+    if not field or field=="no" or field=="false":
+        return False
+    else:
+        return True
 
 # -------------- Classes --------------
 
@@ -55,19 +78,25 @@ for row in rows:
     p_rows = ws_properties.get_rows()
     for p_row in p_rows:
 
-        if str(p_row[1].value) == title and str(p_row[7].value) == "yes":
-            required.append(str(p_row[0].value) + ":" + str(p_row[2].value))
-        elif str(p_row[1].value) == title and (str(p_row[7].value) == "no" or str(p_row[7].value) == ""):
-            optional.append(str(p_row[0].value) + ":" + str(p_row[2].value))
+        if str(p_row[1].value) == title and eval_binary(str(p_row[7].value)):
+            # required.append(str(p_row[0].value) + ":" + str(p_row[2].value))
+            # for readability, we will not store the qualified name here,
+            # the namespace can be found in the relations dict
+            required.append(str(p_row[2].value))
+        elif str(p_row[1].value) == title and not eval_binary(str(p_row[7].value)):
+            # optional.append(str(p_row[0].value) + ":" + str(p_row[2].value))
+            # for readability, we will not store the qualified name here,
+            # the namespace can be found in the relations dict
+             optional.append(str(p_row[2].value))
 
     item_dict.update({
         "label": "TBox",
         "version": version,
         "description": str(row[4].value),
-        "required_properties": sorted(required),
-        "optional_properties": sorted(optional),
+        "required_property": sorted(required),
+        "optional_property": sorted(optional),
         "subclass_of": sorted(subclass_of),
-        "uri": "http://example.org/tbox/" + title.lower()
+        "identifier": construct_uri(title)
     })
 
 
@@ -92,9 +121,34 @@ for row in rows:
         "namespace": str(row[4].value),
         "description": str(row[5].value),
         "label": "object_property",
-        "uri": "http://example.org/tbox/" + title.lower()
+        "identifier": construct_uri(title)
     })
 
+
+# -------------- Properties (new structure, own dict) --------------
+
+rows = ws_properties.get_rows()  # generator for iterating rows
+rows.next()  # omit header row
+
+for row in rows:
+    item_dict = {}
+    title = str(row[2].value)
+
+    if str(row[3].value) == "upper":
+        property_dict_upper.update({title: item_dict})
+    if str(row[3].value) == "simutool":
+        property_dict_simutool.update({title: item_dict})
+
+    item_dict.update({
+        "namespace": str(row[0].value),
+        "title": str(row[2].value),
+        "xsd_type": str(row[4].value),
+        "description": str(row[5].value),
+        "unique": str(eval_binary(str(row[8].value))),
+        "identifier": construct_uri(title),
+        "label": "property",
+        "label2": "TBox"
+    })
 
 # -------------- Namespaces --------------
 
@@ -113,6 +167,7 @@ for row in rows:
     })
 
 
+
 # -------------- Save dicts to .py files, add comments at top --------------
 
 with open("upper.py", "w") as out:
@@ -124,6 +179,9 @@ with open("upper.py", "w") as out:
     if relations_dict_upper:
         out.write("\n# Dict storing relation info. \nrelations = ")
         pprint.pprint(relations_dict_upper, stream=out)
+    if property_dict_upper:
+        out.write("\n# Dict storing property info. \nproperties = ")
+        pprint.pprint(property_dict_upper, stream=out)
     if namespace_dict:
         out.write("\n# Dict storing namespace info. \nnamespaces = ")
         pprint.pprint(namespace_dict, stream=out)
@@ -136,4 +194,7 @@ with open("simutool.py", "w") as out:
     if relations_dict_simutool:
         out.write("\n# Dict storing relation info. \nrelations = ")
         pprint.pprint(relations_dict_simutool, stream=out)
+    if property_dict_simutool:
+        out.write("\n# Dict storing property info. \nproperties = ")
+        pprint.pprint(property_dict_simutool, stream=out)
 
