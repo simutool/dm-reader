@@ -123,7 +123,8 @@ for row in rows:
     optional = []
     subclass_of = []
 
-    title = str(row[0].value)
+    # title = str(row[0].value)
+    title = idx(row, _clsz, 'title')
 
     subcls_of = idx(row, _clsz, 'subclass_of')
 
