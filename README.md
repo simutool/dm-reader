@@ -1,3 +1,8 @@
+# About
+
+A tool to read a domain model (ontology) represented in excel into python dict data structures. See provided xlsx file for an example.
+
+
 # Extracting data from Excel file
 
 - Usage `python xlsxreader.py [excel_file_path]`
